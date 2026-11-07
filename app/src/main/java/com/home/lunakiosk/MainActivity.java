@@ -10,6 +10,7 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -27,6 +28,7 @@ public class MainActivity extends Activity {
     private TextView hint;
     private int cx = 480;
     private int cy = 270;
+    private String pendingJs = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,6 +38,10 @@ public class MainActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
 
         web = new WebView(this);
+        CookieManager cm = CookieManager.getInstance();
+        cm.setAcceptCookie(true);
+        cm.setAcceptThirdPartyCookies(web, true);
+
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -45,7 +51,15 @@ public class MainActivity extends Activity {
         s.setBuiltInZoomControls(false);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        web.setWebViewClient(new WebViewClient());
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String u) {
+                if (pendingJs != null) {
+                    view.evaluateJavascript(pendingJs, null);
+                    pendingJs = null;
+                }
+            }
+        });
         web.setWebChromeClient(new WebChromeClient());
         web.setBackgroundColor(Color.BLACK);
         web.setFocusable(true);
@@ -72,9 +86,14 @@ public class MainActivity extends Activity {
         String url = DEFAULT_URL;
         if (getIntent() != null && getIntent().getStringExtra("url") != null) {
             url = getIntent().getStringExtra("url");
-            sp.edit().putString("url", url).apply();
         } else {
             url = sp.getString("url", DEFAULT_URL);
+        }
+        if (url != null && url.startsWith("js:")) {
+            pendingJs = url.substring(3);
+            url = sp.getString("url", DEFAULT_URL);
+        } else {
+            sp.edit().putString("url", url).apply();
         }
         web.loadUrl(url);
 
